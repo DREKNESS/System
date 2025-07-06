@@ -1,0 +1,171 @@
+// Main component
+import { useState, useEffect, useRef } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { motion, AnimatePresence } from "framer-motion";
+import html2canvas from "html2canvas";
+
+export default function StatusWindow() {
+  const [breathTime, setBreathTime] = useState(0);
+  const [focusTime, setFocusTime] = useState(0);
+  const [skills, setSkills] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [hp, setHp] = useState(0);
+  const [mp, setMp] = useState(0);
+  const [level, setLevel] = useState(0);
+  const [job, setJob] = useState("");
+  const [title, setTitle] = useState("");
+  const [stats, setStats] = useState({ STR: 0, AGI: 0, INT: 0, PER: 0, VIT: 0 });
+  const [parsedSkills, setParsedSkills] = useState([]);
+  const [playSound, setPlaySound] = useState(false);
+  const audioRef = useRef(null);
+  const statRef = useRef(null);
+
+  const statTags = {
+    STR: ["weightlifting", "martial arts", "boxing", "wrestling", "climbing"],
+    AGI: ["dance", "parkour", "gymnastics", "football", "skating"],
+    INT: ["math", "coding", "science", "chess", "problem-solving"],
+    PER: ["drawing", "photography", "sniping", "musician", "design"],
+    VIT: ["yoga", "running", "swimming", "cycling", "calisthenics"]
+  };
+
+  const jobTitles = {
+    STR: "Blade Warden",
+    AGI: "Shadow Dancer",
+    INT: "Mind Sage",
+    PER: "Soul Seeker",
+    VIT: "Iron Guardian"
+  };
+
+  function getTitle(stats, mp, hp) {
+    const values = Object.values(stats);
+    const highStats = values.filter(v => v >= 30).length;
+    const maxStat = Object.entries(stats).reduce((a, b) => (a[1] > b[1] ? a : b))[0];
+
+    if (highStats >= 3) return "Versatile One";
+    if (maxStat === "INT" && stats.INT - Math.max(stats.STR, stats.AGI, stats.PER, stats.VIT) >= 30) return "Mastermind of the Arcane";
+    if (stats.STR + stats.VIT > stats.INT + stats.AGI + stats.PER) return "Unyielding Titan";
+    if (mp - hp >= 100) return "Mental Fortress";
+    return "The One Who Overcame Adversity";
+  }
+
+  function determineStats() {
+    const skillList = skills.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const hpValue = 100 + breathTime * 15;
+    const mpValue = 100 + focusTime * 20;
+    const tempStats = { STR: 0, AGI: 0, INT: 0, PER: 0, VIT: 0 };
+
+    skillList.forEach(skill => {
+      Object.entries(statTags).forEach(([stat, tags]) => {
+        if (tags.some(tag => skill.includes(tag))) {
+          tempStats[stat] += 15;
+        }
+      });
+    });
+
+    const totalStats = Object.values(tempStats).reduce((a, b) => a + b, 0);
+    const baseLevel = Math.floor((hpValue + mpValue + totalStats) / 100);
+    const mainStat = Object.entries(tempStats).reduce((a, b) => (a[1] > b[1] ? a : b))[0];
+
+    setParsedSkills(skillList);
+    setHp(hpValue);
+    setMp(mpValue);
+    setStats(tempStats);
+    setLevel(baseLevel);
+    setJob(jobTitles[mainStat]);
+    setTitle(getTitle(tempStats, mpValue, hpValue));
+    setPlaySound(true);
+  }
+
+  function handleSubmit() {
+    determineStats();
+    setSubmitted(true);
+  }
+
+  function handleDownload() {
+    if (statRef.current) {
+      html2canvas(statRef.current).then(canvas => {
+        const link = document.createElement('a');
+        link.download = 'your-status.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+    }
+  }
+
+  useEffect(() => {
+    if (playSound && audioRef.current) {
+      audioRef.current.play();
+      setPlaySound(false);
+    }
+  }, [playSound]);
+
+  return (
+    <div
+      className="min-h-screen bg-black text-white font-sans"
+      style={{
+        backgroundImage: 'url("/49b45827-1cf7-4346-85c6-30cd2afdf1cd.png")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <audio ref={audioRef} src="/level-up.mp3" preload="auto" />
+
+      <div className="backdrop-blur-sm p-4 max-w-xl mx-auto">
+        <AnimatePresence>
+          {!submitted ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <Card className="bg-black/80 text-white border-purple-600">
+                <CardContent className="space-y-4">
+                  <Label>How many seconds can you hold your breath?</Label>
+                  <Input type="number" value={breathTime} onChange={(e) => setBreathTime(Number(e.target.value))} />
+                  <Label>How many minutes can you focus on a task without distraction?</Label>
+                  <Input type="number" value={focusTime} onChange={(e) => setFocusTime(Number(e.target.value))} />
+                  <Label>List your abilities/talents (comma-separated)</Label>
+                  <Input type="text" value={skills} onChange={(e) => setSkills(e.target.value)} />
+                  <Button onClick={handleSubmit}>Submit</Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Card ref={statRef} className="bg-black/80 text-white border-purple-600 font-mono">
+                <CardContent className="p-6 space-y-4 border-2 border-purple-700">
+                  <div className="text-center text-purple-400 text-3xl font-bold tracking-wider">STATUS</div>
+                  <motion.div className="text-center text-4xl text-white" initial={{ scale: 0 }} animate={{ scale: 1 }}>{level}</motion.div>
+                  <div className="text-center text-sm">JOB: <span className="text-purple-300">{job}</span></div>
+                  <div className="text-center text-sm">TITLE: <span className="text-purple-300">{title}</span></div>
+
+                  <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>HP: <span className="text-green-400">{hp}</span></motion.div>
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>MP: <span className="text-blue-400">{mp}</span></motion.div>
+                    {Object.entries(stats).map(([stat, value]) => (
+                      <motion.div key={stat} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>{stat}: <span className="text-white">{value}</span></motion.div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="text-purple-200">Skills:</div>
+                    <ul className="list-disc ml-5 text-sm">
+                      {parsedSkills.map((skill, i) => (
+                        <li key={i}>{skill}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <Button onClick={handleDownload}>Download Status</Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
